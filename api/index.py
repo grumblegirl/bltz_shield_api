@@ -52,6 +52,11 @@ def application(environ, start_response):
                             "path": "/metadata",
                             "method": "POST", 
                             "description": "Process metadata requests"
+                        },
+                        {
+                            "path": "/conversation",
+                            "method": "POST",
+                            "description": "Process conversation requests"
                         }
                     ],
                     "authentication": "X-API-Key header required",
