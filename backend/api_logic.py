@@ -11,7 +11,7 @@ from typing import Dict, Tuple, Any, Optional
 
 # Import Supabase metadata functionality
 try:
-    from .supabase_metadata import create_metadata_client, insert_metadata
+    from .supabase_metadata import create_metadata_client, insert_metadata, insert_conversation
     from .config import DatabaseConfig
     SUPABASE_AVAILABLE = True
 except ImportError as e:
@@ -156,10 +156,22 @@ class APILogic:
             }
         logger.info(f"Conversation data - Provider: {json_data.get('provider')}, Model: {json_data.get('model')}")
         
-        # TODO: Store in conversation database table
-        # Will need to create insert_conversation function once table schema is provided
+        # Store in Supabase database if available
         database_stored = False
-        database_error = "Conversation table not yet implemented"
+        database_error = None
+        if SUPABASE_AVAILABLE:
+            try:
+                database_stored = insert_conversation(json_data, api_key, use_service_role=True)
+                if database_stored:
+                    logger.info("Successfully stored conversation data in Supabase database")
+                else:
+                    logger.error("Failed to store conversation data in database")
+                    database_error = "Database insertion failed"
+            except Exception as e:
+                logger.error(f"Database insertion error: {str(e)}")
+                database_error = f"Database error: {str(e)}"
+        else:
+            database_error = "Supabase not available"
         
         # Prepare response
         response_data = {

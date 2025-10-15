@@ -35,6 +35,7 @@ class DatabaseConfig:
     
     # Table names
     BROWSER_META_TABLE = "browser_meta"
+    BROWSER_PROMPT_TABLE = "browser_prompt"
     API_KEY_TABLE = "api_key"
     
     # Required fields for metadata requests

@@ -263,6 +263,57 @@ class SupabaseMetadataClient:
             logger.error(f"Failed to insert browser metadata: {str(e)}")
             return None
     
+    def insert_browser_prompt(self, request_data: Dict[str, Any], organization_id: Optional[int] = None) -> Optional[Dict[str, Any]]:
+        """
+        Insert conversation/prompt data into the browser_prompt table.
+        Args:
+            request_data: Dictionary containing provider, timestamp, meta_data, model, user, input
+            organization_id: Organization ID (looked up from API key)
+        Returns:
+            Database response or None if failed
+        """
+        try:
+            if not self.is_connected:
+                logger.error("Not connected to database")
+                return None
+            
+            # Validate required fields for conversation
+            required_fields = ["provider", "timestamp", "meta_data", "model", "user", "input"]
+            for field in required_fields:
+                if field not in request_data:
+                    logger.error(f"Missing required field for conversation: {field}")
+                    return None
+            
+            # Clean meta_data for JSON storage
+            cleaned_metadata = self._clean_metadata(request_data["meta_data"])
+            
+            # Prepare record for insertion
+            record = {
+                "provider": request_data["provider"],
+                "timestamp": request_data["timestamp"], 
+                "meta_data": cleaned_metadata,
+                "model": request_data["model"],
+                "user": request_data["user"],
+                "input": request_data["input"],
+                "orgnaization_id": organization_id  # Note: using the typo from the schema
+            }
+            
+            # Insert into database
+            response = (
+                self.client
+                .table(DatabaseConfig.BROWSER_PROMPT_TABLE)
+                .insert(record)
+                .execute()
+            )
+            
+            logger.info(f"Successfully inserted conversation data for provider: {record['provider']}, model: {record['model']}, org: {organization_id}")
+            logger.debug(f"Database response: {response.data}")
+            return response.data
+            
+        except Exception as e:
+            logger.error(f"Failed to insert conversation data: {str(e)}")
+            return None
+    
     def get_recent_metadata(self, limit: int = 10, model: Optional[str] = None) -> Optional[list]:
         """
         Retrieve recent metadata entries.
@@ -341,6 +392,32 @@ def insert_metadata(request_data: Dict[str, Any], api_key: str, use_service_role
             return result is not None
     except Exception as e:
         logger.error(f"Failed to insert metadata: {str(e)}")
+        return False
+
+
+def insert_conversation(request_data: Dict[str, Any], api_key: str, use_service_role: bool = True) -> bool:
+    """
+    Quick function to insert conversation data with automatic connection management.
+    
+    Args:
+        request_data: Dictionary with provider, timestamp, meta_data, model, user, input
+        api_key: API key to lookup organization_id
+        use_service_role: Whether to use service role key
+        
+    Returns:
+        True if insertion successful, False otherwise
+    """
+    try:
+        with create_metadata_client(use_service_role) as client:
+            # Look up organization_id from API key
+            organization_id = client.get_organization_id_from_api_key(api_key)
+            if organization_id is None:
+                logger.warning("Could not find organization_id for API key, proceeding with None")
+            
+            result = client.insert_browser_prompt(request_data, organization_id)
+            return result is not None
+    except Exception as e:
+        logger.error(f"Failed to insert conversation data: {str(e)}")
         return False
 
 
