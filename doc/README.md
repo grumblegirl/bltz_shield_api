@@ -95,11 +95,7 @@ curl -X POST http://localhost:8080/metadata \
   -H "Content-Type: application/json" \
   -d '{"message": "Hello API"}'
 
-# Test missing API key
-curl -X POST http://localhost:8080/metadata \
-  -H "Content-Type: application/json" \
-  -d '{"message": "Hello API"}'
-```
+
 
 ### Option 2: Using Python test client (requires requests library)
 
