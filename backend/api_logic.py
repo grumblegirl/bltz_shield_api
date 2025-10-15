@@ -135,6 +135,51 @@ class APILogic:
             response_data["database_warning"] = database_error
         return response_data
     
+    def handle_conversation_endpoint(self, json_data: Dict[str, Any], api_key: str) -> Dict[str, Any]:
+        """Handle requests to /conversation endpoint"""
+        logger.info(f"Processing /conversation endpoint with full request body: {json.dumps(json_data)}")
+        required_fields = ["provider", "timestamp", "meta_data", "model", "user", "input"]
+        missing_fields = [field for field in required_fields if field not in json_data]
+        if missing_fields:
+            return {
+                "result": "error",
+                "message": f"Missing required fields: {missing_fields}",
+                "timestamp": datetime.now().isoformat()
+            }
+        # Validate meta_data is a dictionary
+        meta_data = json_data.get("meta_data")
+        if not isinstance(meta_data, dict):
+            return {
+                "result": "error",
+                "message": "meta_data must be a dictionary object",
+                "timestamp": datetime.now().isoformat()
+            }
+        logger.info(f"Conversation data - Provider: {json_data.get('provider')}, Model: {json_data.get('model')}")
+        
+        # TODO: Store in conversation database table
+        # Will need to create insert_conversation function once table schema is provided
+        database_stored = False
+        database_error = "Conversation table not yet implemented"
+        
+        # Prepare response
+        response_data = {
+            "result": "success", 
+            "message": "Conversation request processed successfully",
+            "timestamp": datetime.now().isoformat(),
+            "conversation_summary": {
+                "provider": json_data.get("provider"),
+                "model": json_data.get("model"),
+                "timestamp": json_data.get("timestamp"),
+                "user": json_data.get("user"),
+                "input_length": len(json_data.get("input", "")),
+                "meta_fields_count": len(meta_data),
+                "database_stored": database_stored
+            }
+        }
+        if database_error:
+            response_data["database_warning"] = database_error
+        return response_data
+    
     def create_error_response(self, status_code: int, message: str) -> Tuple[int, Dict[str, Any]]:
         """Create standardized error response"""
         return status_code, {
@@ -173,6 +218,9 @@ class APILogic:
             # Route to appropriate endpoint
             if path == '/metadata' or path == '/api/metadata':
                 response_data = self.handle_metadata_endpoint(json_data, api_key)
+                return self.create_success_response(response_data)
+            elif path == '/conversation' or path == '/api/conversation':
+                response_data = self.handle_conversation_endpoint(json_data, api_key)
                 return self.create_success_response(response_data)
             else:
                 return self.create_error_response(404, f"Endpoint not found: {path}")
