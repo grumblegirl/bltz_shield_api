@@ -33,11 +33,9 @@ class SupabaseConfig:
 class DatabaseConfig:
     """Configuration for database operations."""
     
-    # Table name for browser metadata
+    # Table names
     BROWSER_META_TABLE = "browser_meta"
+    API_KEY_TABLE = "api_key"
     
     # Required fields for metadata requests
-    REQUIRED_FIELDS = ["model", "timestamp", "metadata_data"]
-    
-    # Supported model types
-    SUPPORTED_MODELS = ["gpt", "claude", "gemini", "llama"]
+    REQUIRED_FIELDS = ["provider", "timestamp", "meta_data", "user", "license"]

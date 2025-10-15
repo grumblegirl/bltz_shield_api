@@ -130,6 +130,43 @@ class SupabaseMetadataClient:
             self._connected = False
             logger.info("Disconnected from Supabase")
     
+    def get_organization_id_from_api_key(self, api_key: str) -> Optional[int]:
+        """
+        Look up organization_id from the api_key table based on the API key.
+        
+        Args:
+            api_key: The API key to look up
+            
+        Returns:
+            organization_id if found, None if not found or error
+        """
+        try:
+            if not self.is_connected:
+                logger.error("Not connected to database")
+                return None
+            
+            response = (
+                self.client
+                .table("api_key")
+                .select("organization_id")
+                .eq("api_key", api_key)
+                .eq("deleted", False)  # Only get non-deleted keys
+                .limit(1)
+                .execute()
+            )
+            
+            if response.data and len(response.data) > 0:
+                org_id = response.data[0].get("organization_id")
+                logger.info(f"Found organization_id {org_id} for API key")
+                return org_id
+            else:
+                logger.warning(f"No organization found for API key")
+                return None
+                
+        except Exception as e:
+            logger.error(f"Failed to lookup organization_id from API key: {str(e)}")
+            return None
+    
     def _clean_metadata(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """
         Clean metadata for database insertion.
@@ -163,9 +200,10 @@ class SupabaseMetadataClient:
     def validate_request_data(self, data: Dict[str, Any]) -> tuple[bool, str]:
         """
         Validate incoming request data structure for new schema.
-        Required fields: provider, timestamp, meta_data, user, license, organization_id
+        Required fields: provider, timestamp, meta_data, user, license
+        Note: organization_id is now looked up from api_key table
         """
-        required_fields = ["provider", "timestamp", "meta_data", "user", "license", "organization_id"]
+        required_fields = ["provider", "timestamp", "meta_data", "user", "license"]
         for field in required_fields:
             if field not in data:
                 return False, f"Missing required field: {field}"
@@ -182,11 +220,12 @@ class SupabaseMetadataClient:
             return False, "meta_data must be a dictionary object"
         return True, ""
     
-    def insert_browser_metadata(self, request_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    def insert_browser_metadata(self, request_data: Dict[str, Any], organization_id: Optional[int] = None) -> Optional[Dict[str, Any]]:
         """
         Insert browser metadata into the database (new schema).
         Args:
-            request_data: Dictionary containing provider, timestamp, meta_data, user, license, organization_id
+            request_data: Dictionary containing provider, timestamp, meta_data, user, license
+            organization_id: Organization ID (looked up from API key)
         Returns:
             Database response or None if failed
         """
@@ -208,7 +247,7 @@ class SupabaseMetadataClient:
                 "meta_data": cleaned_metadata,
                 "user": request_data["user"],
                 "license": request_data["license"],
-                "organization_id": request_data["organization_id"]
+                "organization_id": organization_id
             }
             # Insert into database
             response = (
@@ -217,7 +256,7 @@ class SupabaseMetadataClient:
                 .insert(record)
                 .execute()
             )
-            logger.info(f"Successfully inserted browser metadata for provider: {record['provider']}")
+            logger.info(f"Successfully inserted browser metadata for provider: {record['provider']}, org: {organization_id}")
             logger.debug(f"Database response: {response.data}")
             return response.data
         except Exception as e:
@@ -279,12 +318,13 @@ def create_metadata_client(use_service_role: bool = True) -> SupabaseMetadataCli
         raise RuntimeError("Failed to connect to Supabase database")
 
 
-def insert_metadata(request_data: Dict[str, Any], use_service_role: bool = True) -> bool:
+def insert_metadata(request_data: Dict[str, Any], api_key: str, use_service_role: bool = True) -> bool:
     """
     Quick function to insert metadata with automatic connection management.
     
     Args:
-        request_data: Dictionary with model, timestamp, and metadata_data
+        request_data: Dictionary with provider, timestamp, meta_data, user, license
+        api_key: API key to lookup organization_id
         use_service_role: Whether to use service role key
         
     Returns:
@@ -292,7 +332,12 @@ def insert_metadata(request_data: Dict[str, Any], use_service_role: bool = True)
     """
     try:
         with create_metadata_client(use_service_role) as client:
-            result = client.insert_browser_metadata(request_data)
+            # Look up organization_id from API key
+            organization_id = client.get_organization_id_from_api_key(api_key)
+            if organization_id is None:
+                logger.warning("Could not find organization_id for API key, proceeding with None")
+            
+            result = client.insert_browser_metadata(request_data, organization_id)
             return result is not None
     except Exception as e:
         logger.error(f"Failed to insert metadata: {str(e)}")

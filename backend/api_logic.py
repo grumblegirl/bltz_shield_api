@@ -7,7 +7,7 @@ Contains all the core business logic and endpoint handlers
 import json
 import logging
 from datetime import datetime
-from typing import Dict, Tuple, Any
+from typing import Dict, Tuple, Any, Optional
 
 # Import Supabase metadata functionality
 try:
@@ -35,8 +35,8 @@ class APILogic:
     def __init__(self):
         self.api_key = HARDCODED_API_KEY
     
-    def validate_api_key(self, headers: Dict[str, Any]) -> bool:
-        """Validate X-API-Key header against hardcoded API key"""
+    def validate_api_key(self, headers: Dict[str, Any]) -> tuple[bool, Optional[str]]:
+        """Validate X-API-Key header and return the API key"""
         # Try different header key formats (WSGI, HTTP, direct)
         api_key = (headers.get('X-API-Key') or 
                    headers.get('x-api-key') or 
@@ -46,14 +46,14 @@ class APILogic:
         if not api_key:
             logger.warning("Missing X-API-Key header in request")
             logger.warning(f"Available headers: {list(headers.keys())}")
-            return False
+            return False, None
             
         if api_key != self.api_key:
             logger.warning(f"Invalid API key provided: {api_key}")
-            return False
+            return False, None
             
         logger.info("API key validation successful")
-        return True
+        return True, api_key
     
     def log_request_details(self, method: str, path: str, headers: Dict[str, Any], body: str = None):
         """Log request details for debugging"""
@@ -82,10 +82,10 @@ class APILogic:
                 "message": "Invalid JSON format"
             }
     
-    def handle_metadata_endpoint(self, json_data: Dict[str, Any]) -> Dict[str, Any]:
+    def handle_metadata_endpoint(self, json_data: Dict[str, Any], api_key: str) -> Dict[str, Any]:
         """Handle requests to /metadata endpoint with new schema"""
         logger.info(f"Processing /metadata endpoint with full request body: {json.dumps(json_data)}")
-        required_fields = ["provider", "timestamp", "meta_data", "user", "license", "organization_id"]
+        required_fields = ["provider", "timestamp", "meta_data", "user", "license"]
         missing_fields = [field for field in required_fields if field not in json_data]
         if missing_fields:
             return {
@@ -105,9 +105,10 @@ class APILogic:
         # Store in Supabase database if available
         database_stored = False
         database_error = None
+        organization_id = None
         if SUPABASE_AVAILABLE:
             try:
-                database_stored = insert_metadata(json_data, use_service_role=True)
+                database_stored = insert_metadata(json_data, api_key, use_service_role=True)
                 if database_stored:
                     logger.info("Successfully stored metadata in Supabase database")
                 else:
@@ -127,7 +128,6 @@ class APILogic:
                 "fields_count": len(meta_data),
                 "user": json_data.get("user"),
                 "license": json_data.get("license"),
-                "organization_id": json_data.get("organization_id"),
                 "database_stored": database_stored
             }
         }
@@ -161,7 +161,8 @@ class APILogic:
                 return self.create_error_response(405, f"Method {method} not allowed")
             
             # Validate API key
-            if not self.validate_api_key(headers):
+            is_valid, api_key = self.validate_api_key(headers)
+            if not is_valid:
                 return self.create_error_response(401, "Invalid or missing API key")
             
             # Parse request body
@@ -171,7 +172,7 @@ class APILogic:
             
             # Route to appropriate endpoint
             if path == '/metadata' or path == '/api/metadata':
-                response_data = self.handle_metadata_endpoint(json_data)
+                response_data = self.handle_metadata_endpoint(json_data, api_key)
                 return self.create_success_response(response_data)
             else:
                 return self.create_error_response(404, f"Endpoint not found: {path}")
