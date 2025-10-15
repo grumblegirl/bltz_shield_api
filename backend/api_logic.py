@@ -84,12 +84,8 @@ class APILogic:
     
     def handle_metadata_endpoint(self, json_data: Dict[str, Any]) -> Dict[str, Any]:
         """Handle requests to /metadata endpoint with new schema"""
-        logger.info(f"Processing /metadata endpoint with data keys: {list(json_data.keys())}")
-        
-        # Validate the new API schema: {"model": "gpt", "timestamp": "...", "metadata_data": {...}}
-        required_fields = ["model", "timestamp", "metadata_data"]
-        
-        # Check for required fields
+        logger.info(f"Processing /metadata endpoint with full request body: {json.dumps(json_data)}")
+        required_fields = ["provider", "timestamp", "meta_data", "user", "license", "organization_id"]
         missing_fields = [field for field in required_fields if field not in json_data]
         if missing_fields:
             return {
@@ -97,33 +93,18 @@ class APILogic:
                 "message": f"Missing required fields: {missing_fields}",
                 "timestamp": datetime.now().isoformat()
             }
-        
-        # Validate model field
-        model = json_data.get("model", "").lower()
-        if SUPABASE_AVAILABLE:
-            supported_models = DatabaseConfig.SUPPORTED_MODELS
-            if model not in supported_models:
-                return {
-                    "result": "error", 
-                    "message": f"Unsupported model: {model}. Supported: {supported_models}",
-                    "timestamp": datetime.now().isoformat()
-                }
-        
-        # Validate metadata_data is a dictionary
-        metadata_data = json_data.get("metadata_data")
-        if not isinstance(metadata_data, dict):
+        # Validate meta_data is a dictionary
+        meta_data = json_data.get("meta_data")
+        if not isinstance(meta_data, dict):
             return {
                 "result": "error",
-                "message": "metadata_data must be a dictionary object",
+                "message": "meta_data must be a dictionary object",
                 "timestamp": datetime.now().isoformat()
             }
-        
-        logger.info(f"Metadata contains {len(metadata_data)} fields for model: {model}")
-        
+        logger.info(f"Meta_data contains {len(meta_data)} fields for provider: {json_data.get('provider')}")
         # Store in Supabase database if available
         database_stored = False
         database_error = None
-        
         if SUPABASE_AVAILABLE:
             try:
                 database_stored = insert_metadata(json_data, use_service_role=True)
@@ -135,24 +116,23 @@ class APILogic:
             except Exception as e:
                 logger.error(f"Database insertion error: {str(e)}")
                 database_error = f"Database error: {str(e)}"
-        
         # Prepare response
         response_data = {
             "result": "success",
             "message": "Metadata request processed successfully",
             "timestamp": datetime.now().isoformat(),
             "metadata_summary": {
-                "model": model,
+                "provider": json_data.get("provider"),
                 "timestamp": json_data.get("timestamp"),
-                "fields_count": len(metadata_data),
+                "fields_count": len(meta_data),
+                "user": json_data.get("user"),
+                "license": json_data.get("license"),
+                "organization_id": json_data.get("organization_id"),
                 "database_stored": database_stored
             }
         }
-        
-        # Add database error to response if occurred
         if database_error:
             response_data["database_warning"] = database_error
-        
         return response_data
     
     def create_error_response(self, status_code: int, message: str) -> Tuple[int, Dict[str, Any]]:

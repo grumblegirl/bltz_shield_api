@@ -162,47 +162,31 @@ class SupabaseMetadataClient:
     
     def validate_request_data(self, data: Dict[str, Any]) -> tuple[bool, str]:
         """
-        Validate incoming request data structure.
-        
-        Args:
-            data: Request data to validate
-            
-        Returns:
-            Tuple of (is_valid, error_message)
+        Validate incoming request data structure for new schema.
+        Required fields: provider, timestamp, meta_data, user, license, organization_id
         """
-        # Check required fields
-        for field in DatabaseConfig.REQUIRED_FIELDS:
+        required_fields = ["provider", "timestamp", "meta_data", "user", "license", "organization_id"]
+        for field in required_fields:
             if field not in data:
                 return False, f"Missing required field: {field}"
-        
-        # Validate model field
-        model = data.get("model", "").lower()
-        if model not in DatabaseConfig.SUPPORTED_MODELS:
-            return False, f"Unsupported model: {model}. Supported: {DatabaseConfig.SUPPORTED_MODELS}"
-        
         # Validate timestamp format
         timestamp = data.get("timestamp")
         if timestamp:
             try:
-                # Try to parse timestamp
-                datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
+                datetime.fromisoformat(str(timestamp).replace('Z', '+00:00'))
             except (ValueError, AttributeError):
                 return False, "Invalid timestamp format. Use ISO format (YYYY-MM-DDTHH:MM:SS)"
-        
-        # Validate metadata_data is a dictionary
-        metadata_data = data.get("metadata_data")
-        if not isinstance(metadata_data, dict):
-            return False, "metadata_data must be a dictionary object"
-        
+        # Validate meta_data is a dictionary
+        meta_data = data.get("meta_data")
+        if not isinstance(meta_data, dict):
+            return False, "meta_data must be a dictionary object"
         return True, ""
     
     def insert_browser_metadata(self, request_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """
-        Insert browser metadata into the database.
-        
+        Insert browser metadata into the database (new schema).
         Args:
-            request_data: Dictionary containing model, timestamp, and metadata_data
-            
+            request_data: Dictionary containing provider, timestamp, meta_data, user, license, organization_id
         Returns:
             Database response or None if failed
         """
@@ -210,23 +194,22 @@ class SupabaseMetadataClient:
             if not self.is_connected:
                 logger.error("Not connected to database")
                 return None
-            
             # Validate request data
             is_valid, error_msg = self.validate_request_data(request_data)
             if not is_valid:
                 logger.error(f"Invalid request data: {error_msg}")
                 return None
-            
-            # Clean metadata for JSON storage
-            cleaned_metadata = self._clean_metadata(request_data["metadata_data"])
-            
+            # Clean meta_data for JSON storage
+            cleaned_metadata = self._clean_metadata(request_data["meta_data"])
             # Prepare record for insertion
             record = {
-                "model": request_data["model"].lower(),
+                "provider": request_data["provider"],
                 "timestamp": request_data["timestamp"],
-                "meta_data": cleaned_metadata  # JSONB column
+                "meta_data": cleaned_metadata,
+                "user": request_data["user"],
+                "license": request_data["license"],
+                "organization_id": request_data["organization_id"]
             }
-            
             # Insert into database
             response = (
                 self.client
@@ -234,12 +217,9 @@ class SupabaseMetadataClient:
                 .insert(record)
                 .execute()
             )
-            
-            logger.info(f"Successfully inserted browser metadata for model: {record['model']}")
+            logger.info(f"Successfully inserted browser metadata for provider: {record['provider']}")
             logger.debug(f"Database response: {response.data}")
-            
             return response.data
-            
         except Exception as e:
             logger.error(f"Failed to insert browser metadata: {str(e)}")
             return None
