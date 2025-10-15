@@ -9,6 +9,15 @@ import logging
 from datetime import datetime
 from typing import Dict, Tuple, Any
 
+# Import Supabase metadata functionality
+try:
+    from .supabase_metadata import create_metadata_client, insert_metadata
+    from .config import DatabaseConfig
+    SUPABASE_AVAILABLE = True
+except ImportError as e:
+    logging.warning(f"Supabase functionality not available: {e}")
+    SUPABASE_AVAILABLE = False
+
 # Configuration
 HARDCODED_API_KEY = 'bltz_shield_2025_secure_key'
 
@@ -74,18 +83,75 @@ class APILogic:
             }
     
     def handle_metadata_endpoint(self, json_data: Dict[str, Any]) -> Dict[str, Any]:
-        """Handle requests to /metadata endpoint"""
-        logger.info(f"Processing /metadata endpoint with data: {json_data}")
+        """Handle requests to /metadata endpoint with new schema"""
+        logger.info(f"Processing /metadata endpoint with data keys: {list(json_data.keys())}")
         
-        # Business logic for metadata processing goes here
-        # For now, just return success for valid requests
+        # Validate the new API schema: {"model": "gpt", "timestamp": "...", "metadata_data": {...}}
+        required_fields = ["model", "timestamp", "metadata_data"]
         
+        # Check for required fields
+        missing_fields = [field for field in required_fields if field not in json_data]
+        if missing_fields:
+            return {
+                "result": "error",
+                "message": f"Missing required fields: {missing_fields}",
+                "timestamp": datetime.now().isoformat()
+            }
+        
+        # Validate model field
+        model = json_data.get("model", "").lower()
+        if SUPABASE_AVAILABLE:
+            supported_models = DatabaseConfig.SUPPORTED_MODELS
+            if model not in supported_models:
+                return {
+                    "result": "error", 
+                    "message": f"Unsupported model: {model}. Supported: {supported_models}",
+                    "timestamp": datetime.now().isoformat()
+                }
+        
+        # Validate metadata_data is a dictionary
+        metadata_data = json_data.get("metadata_data")
+        if not isinstance(metadata_data, dict):
+            return {
+                "result": "error",
+                "message": "metadata_data must be a dictionary object",
+                "timestamp": datetime.now().isoformat()
+            }
+        
+        logger.info(f"Metadata contains {len(metadata_data)} fields for model: {model}")
+        
+        # Store in Supabase database if available
+        database_stored = False
+        database_error = None
+        
+        if SUPABASE_AVAILABLE:
+            try:
+                database_stored = insert_metadata(json_data, use_service_role=True)
+                if database_stored:
+                    logger.info("Successfully stored metadata in Supabase database")
+                else:
+                    logger.error("Failed to store metadata in database")
+                    database_error = "Database insertion failed"
+            except Exception as e:
+                logger.error(f"Database insertion error: {str(e)}")
+                database_error = f"Database error: {str(e)}"
+        
+        # Prepare response
         response_data = {
             "result": "success",
             "message": "Metadata request processed successfully",
             "timestamp": datetime.now().isoformat(),
-            "received_data": json_data
+            "metadata_summary": {
+                "model": model,
+                "timestamp": json_data.get("timestamp"),
+                "fields_count": len(metadata_data),
+                "database_stored": database_stored
+            }
         }
+        
+        # Add database error to response if occurred
+        if database_error:
+            response_data["database_warning"] = database_error
         
         return response_data
     

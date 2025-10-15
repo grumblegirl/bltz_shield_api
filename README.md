@@ -1,12 +1,14 @@
 # BLTZ Shield API
 
-🛡️ A secure HTTP API server with JSON endpoints and API key authentication, built for Vercel deployment.
+🛡️ A secure HTTP API server with JSON endpoints, API key authentication, and Supabase database integration for browser metadata storage.
 
 ## Features
 
 - ✅ **WSGI Application** - Uses proper WSGI pattern for Vercel compatibility
-- ✅ **API Key Authentication** - X-API-Key header validation
+- ✅ **API Key Authentication** - X-API-Key header validation  
 - ✅ **JSON Endpoints** - RESTful API with JSON request/response
+- ✅ **Supabase Database** - Browser metadata storage with JSONB support
+- ✅ **Schema Validation** - Request data validation and sanitization
 - ✅ **CORS Support** - Cross-origin requests enabled
 - ✅ **Error Handling** - Comprehensive error responses
 - ✅ **Local Development** - Built-in development server
@@ -60,18 +62,25 @@ Returns API information and status.
 ```
 
 ### POST /metadata
-Process metadata requests with JSON payload.
+Store browser metadata in Supabase database with comprehensive validation.
 
 **Headers:**
 - `X-API-Key: bltz_shield_2025_secure_key` (required)
 - `Content-Type: application/json`
 
-**Request Body:**
+**Request Body Schema:**
 ```json
 {
-  "user": "example",
-  "action": "metadata_request",
-  "data": {}
+  "model": "gpt",                    // Required: "gpt"|"claude"|"gemini"|"llama"
+  "timestamp": "2025-01-27T12:00:00Z",  // Required: ISO 8601 format
+  "metadata_data": {                 // Required: Browser metadata object
+    "user_agent": "Mozilla/5.0...",
+    "screen_width": 1920,
+    "screen_height": 1080,
+    "language": "en-US",
+    "timezone": "America/New_York",
+    // ... up to 53 metadata fields supported
+  }
 }
 ```
 
@@ -79,11 +88,22 @@ Process metadata requests with JSON payload.
 ```json
 {
   "result": "success",
-  "message": "Metadata request processed successfully", 
-  "timestamp": "2025-10-12T...",
-  "received_data": { /* your request data */ }
+  "message": "Metadata request processed successfully",
+  "timestamp": "2025-01-27T17:30:00.123456",
+  "metadata_summary": {
+    "model": "gpt",
+    "timestamp": "2025-01-27T12:00:00Z", 
+    "fields_count": 53,
+    "database_stored": true
+  }
 }
 ```
+
+**Supported Models:**
+- `gpt` - OpenAI GPT models
+- `claude` - Anthropic Claude models
+- `gemini` - Google Gemini models
+- `llama` - Meta LLaMA models
 
 ## Project Structure
 
