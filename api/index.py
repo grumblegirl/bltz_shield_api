@@ -104,6 +104,9 @@ def application(environ, start_response):
                 if path in ['/metadata', '/api/metadata']:
                     # Use business logic from backend
                     status_code, response_data = handle_request('POST', '/metadata', headers_dict, json.dumps(data) if data else "")
+                elif path in ['/conversation', '/api/conversation']:
+                    # Use business logic from backend
+                    status_code, response_data = handle_request('POST', '/conversation', headers_dict, json.dumps(data) if data else "")
                 else:
                     status_code = 404
                     response_data = {"result": "error", "message": f"Endpoint not found: {path}"}
