@@ -119,6 +119,19 @@ class APILogic:
                 "timestamp": datetime.now().isoformat()
             }
         logger.info(f"Meta_data contains {len(meta_data)} fields for provider: {json_data.get('provider')}")
+        
+        # Append API client origin information to meta_data for database storage
+        # This captures where the API request itself came from (e.g., Chrome extension origin)
+        if headers:
+            logger.info(f"Available headers for origin extraction: {list(headers.keys())}")
+            json_data["meta_data"]["_api_client_origin"] = headers.get('Origin', 'Not provided')
+            json_data["meta_data"]["_api_client_referrer"] = headers.get('Referer', 'Not provided') 
+            json_data["meta_data"]["_api_client_user_agent"] = headers.get('User-Agent', 'Not provided')
+            json_data["meta_data"]["_api_client_ip"] = headers.get('REAL_CLIENT_IP') or headers.get('CLIENT_IP', 'Unknown')
+            logger.info(f"Captured origin info: Origin={headers.get('Origin')}, Referer={headers.get('Referer')}, IP={headers.get('REAL_CLIENT_IP') or headers.get('CLIENT_IP')}")
+        else:
+            logger.warning("No headers provided to metadata endpoint")
+        
         # Store in Supabase database if available
         database_stored = False
         database_error = None
@@ -165,6 +178,18 @@ class APILogic:
                 "timestamp": datetime.now().isoformat()
             }
         logger.info(f"Conversation data - Provider: {json_data.get('provider')}, Model: {json_data.get('model')}")
+        
+        # Append API client origin information to meta_data for database storage
+        # This captures where the API request itself came from (e.g., Chrome extension origin)
+        if headers:
+            logger.info(f"Available headers for origin extraction: {list(headers.keys())}")
+            json_data["meta_data"]["_api_client_origin"] = headers.get('Origin', 'Not provided')
+            json_data["meta_data"]["_api_client_referrer"] = headers.get('Referer', 'Not provided') 
+            json_data["meta_data"]["_api_client_user_agent"] = headers.get('User-Agent', 'Not provided')
+            json_data["meta_data"]["_api_client_ip"] = headers.get('REAL_CLIENT_IP') or headers.get('CLIENT_IP', 'Unknown')
+            logger.info(f"Captured origin info: Origin={headers.get('Origin')}, Referer={headers.get('Referer')}, IP={headers.get('REAL_CLIENT_IP') or headers.get('CLIENT_IP')}")
+        else:
+            logger.warning("No headers provided to conversation endpoint")
         
         # Store in Supabase database if available
         database_stored = False
