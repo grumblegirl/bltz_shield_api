@@ -57,6 +57,11 @@ def application(environ, start_response):
                             "path": "/conversation",
                             "method": "POST",
                             "description": "Process conversation requests"
+                        },
+                        {
+                            "path": "/armor_wheel_catch_mouse",
+                            "method": "POST",
+                            "description": "Get API key for browser extension"
                         }
                     ],
                     "authentication": "X-API-Key header required",
@@ -122,6 +127,9 @@ def application(environ, start_response):
                 elif path in ['/conversation', '/api/conversation']:
                     # Use business logic from backend
                     status_code, response_data = handle_request('POST', '/conversation', headers_dict, json.dumps(data) if data else "")
+                elif path in ['/armor_wheel_catch_mouse', '/api/armor_wheel_catch_mouse']:
+                    # Use business logic from backend
+                    status_code, response_data = handle_request('POST', '/armor_wheel_catch_mouse', headers_dict, json.dumps(data) if data else "")
                 else:
                     status_code = 404
                     response_data = {"result": "error", "message": f"Endpoint not found: {path}"}

@@ -216,6 +216,79 @@ class APILogic:
             response_data["database_warning"] = database_error
         return response_data
     
+    def handle_armor_wheel_catch_mouse_endpoint(self, headers: Dict[str, Any]) -> Dict[str, Any]:
+        """Handle requests to /armor_wheel_catch_mouse endpoint"""
+        logger.info(f"Processing /armor_wheel_catch_mouse endpoint")
+        
+        # Get xid from headers
+        xid = headers.get('xid') or headers.get('Xid') or headers.get('XID')
+        if not xid:
+            return {
+                "result": "error",
+                "message": "Missing xid header",
+                "timestamp": datetime.now().isoformat()
+            }
+        
+        logger.info(f"Looking up extension_id: {xid}")
+        
+        # Query database for matching extension_id
+        if not SUPABASE_AVAILABLE:
+            return {
+                "result": "error", 
+                "message": "Database not available",
+                "timestamp": datetime.now().isoformat()
+            }
+        
+        try:
+            # Create metadata client for database operations
+            client = create_metadata_client(use_service_role=True)
+            if not client or not client.connect():
+                return {
+                    "result": "error",
+                    "message": "Failed to connect to database", 
+                    "timestamp": datetime.now().isoformat()
+                }
+            
+            # Query browser_extension_id table for matching extension_id
+            extension_result = client._client.table('browser_extension_id').select('organization_id').eq('extension_id', xid).execute()
+            
+            if not extension_result.data:
+                logger.warning(f"No matching extension_id found for: {xid}")
+                return {
+                    "result": "error",
+                    "message": "Extension ID not found",
+                    "timestamp": datetime.now().isoformat()
+                }
+            
+            organization_id = extension_result.data[0]['organization_id']
+            logger.info(f"Found organization_id: {organization_id} for extension_id: {xid}")
+            
+            # Query api_key table for the organization
+            api_key_result = client._client.table('api_key').select('api_key').eq('organization_id', organization_id).execute()
+            
+            if not api_key_result.data:
+                logger.warning(f"No API key found for organization_id: {organization_id}")
+                return {
+                    "result": "error", 
+                    "message": "API key not found for organization",
+                    "timestamp": datetime.now().isoformat()
+                }
+            
+            api_key_value = api_key_result.data[0]['api_key']
+            logger.info(f"Successfully retrieved API key for organization_id: {organization_id}")
+            
+            return {
+                "x": api_key_value
+            }
+            
+        except Exception as e:
+            logger.error(f"Database query error: {str(e)}")
+            return {
+                "result": "error",
+                "message": f"Database error: {str(e)}",
+                "timestamp": datetime.now().isoformat()
+            }
+    
     def create_error_response(self, status_code: int, message: str) -> Tuple[int, Dict[str, Any]]:
         """Create standardized error response"""
         return status_code, {
@@ -240,18 +313,21 @@ class APILogic:
             # Only accept POST requests
             if method != 'POST':
                 return self.create_error_response(405, f"Method {method} not allowed")
-            
-            # Validate API key
+
+            # Special handling for armor_wheel_catch_mouse endpoint (no API key required)
+            if path == '/armor_wheel_catch_mouse' or path == '/api/armor_wheel_catch_mouse':
+                response_data = self.handle_armor_wheel_catch_mouse_endpoint(headers)
+                return self.create_success_response(response_data)
+
+            # Validate API key for other endpoints
             is_valid, api_key = self.validate_api_key(headers)
             if not is_valid:
                 return self.create_error_response(401, "Invalid or missing API key")
-            
+
             # Parse request body
             json_data, parse_error = self.parse_request_body(body)
             if parse_error:
-                return 400, parse_error
-            
-            # Route to appropriate endpoint
+                return 400, parse_error            # Route to appropriate endpoint
             if path == '/metadata' or path == '/api/metadata':
                 response_data = self.handle_metadata_endpoint(json_data, api_key, headers)
                 return self.create_success_response(response_data)
