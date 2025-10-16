@@ -59,6 +59,20 @@ class APILogic:
         """Log request details for debugging"""
         logger.info(f"Request method: {method}")
         logger.info(f"Request path: {path}")
+        
+        # Log origin/referrer information
+        origin = headers.get('Origin') or headers.get('origin') or headers.get('ORIGIN')
+        referrer = headers.get('Referer') or headers.get('referer') or headers.get('REFERER')
+        user_agent = headers.get('User-Agent') or headers.get('user-agent') or headers.get('USER-AGENT')
+        client_ip = headers.get('REAL_CLIENT_IP') or headers.get('CLIENT_IP') or headers.get('X-Forwarded-For', 'Unknown')
+        server_name = headers.get('SERVER_NAME', 'Unknown')
+        
+        logger.info(f"Request origin: {origin or 'Not provided'}")
+        logger.info(f"Request referrer: {referrer or 'Not provided'}")
+        logger.info(f"Request user-agent: {user_agent or 'Not provided'}")
+        logger.info(f"Client IP: {client_ip}")
+        logger.info(f"Server: {server_name}")
+        
         logger.info(f"Request headers: {headers}")
         
         if body:
@@ -82,9 +96,12 @@ class APILogic:
                 "message": "Invalid JSON format"
             }
     
-    def handle_metadata_endpoint(self, json_data: Dict[str, Any], api_key: str) -> Dict[str, Any]:
+    def handle_metadata_endpoint(self, json_data: Dict[str, Any], api_key: str, headers: Dict[str, Any] = None) -> Dict[str, Any]:
         """Handle requests to /metadata endpoint with new schema"""
-        logger.info(f"Processing /metadata endpoint with full request body: {json.dumps(json_data)}")
+        origin = headers.get('Origin', 'Unknown') if headers else 'Unknown'
+        client_ip = headers.get('REAL_CLIENT_IP', 'Unknown') if headers else 'Unknown'
+        logger.info(f"Processing /metadata endpoint from origin: {origin}, IP: {client_ip}")
+        logger.info(f"Metadata request body: {json.dumps(json_data)}")
         required_fields = ["provider", "timestamp", "meta_data", "user", "license"]
         missing_fields = [field for field in required_fields if field not in json_data]
         if missing_fields:
@@ -135,9 +152,12 @@ class APILogic:
             response_data["database_warning"] = database_error
         return response_data
     
-    def handle_conversation_endpoint(self, json_data: Dict[str, Any], api_key: str) -> Dict[str, Any]:
+    def handle_conversation_endpoint(self, json_data: Dict[str, Any], api_key: str, headers: Dict[str, Any] = None) -> Dict[str, Any]:
         """Handle requests to /conversation endpoint"""
-        logger.info(f"Processing /conversation endpoint with full request body: {json.dumps(json_data)}")
+        origin = headers.get('Origin', 'Unknown') if headers else 'Unknown'
+        client_ip = headers.get('REAL_CLIENT_IP', 'Unknown') if headers else 'Unknown'
+        logger.info(f"Processing /conversation endpoint from origin: {origin}, IP: {client_ip}")
+        logger.info(f"Conversation request body: {json.dumps(json_data)}")
         required_fields = ["provider", "timestamp", "meta_data", "model", "user", "input"]
         missing_fields = [field for field in required_fields if field not in json_data]
         if missing_fields:
@@ -229,10 +249,10 @@ class APILogic:
             
             # Route to appropriate endpoint
             if path == '/metadata' or path == '/api/metadata':
-                response_data = self.handle_metadata_endpoint(json_data, api_key)
+                response_data = self.handle_metadata_endpoint(json_data, api_key, headers)
                 return self.create_success_response(response_data)
             elif path == '/conversation' or path == '/api/conversation':
-                response_data = self.handle_conversation_endpoint(json_data, api_key)
+                response_data = self.handle_conversation_endpoint(json_data, api_key, headers)
                 return self.create_success_response(response_data)
             else:
                 return self.create_error_response(404, f"Endpoint not found: {path}")

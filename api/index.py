@@ -100,6 +100,21 @@ def application(environ, start_response):
                         header_name = key[5:].replace('_', '-').title()
                         headers_dict[header_name] = value
                 
+                # Add additional request information for logging
+                headers_dict['CLIENT_IP'] = environ.get('REMOTE_ADDR', 'Unknown')
+                headers_dict['REQUEST_METHOD'] = environ.get('REQUEST_METHOD', method)
+                headers_dict['REQUEST_URI'] = environ.get('REQUEST_URI', path)
+                headers_dict['SERVER_NAME'] = environ.get('SERVER_NAME', 'Unknown')
+                headers_dict['QUERY_STRING'] = environ.get('QUERY_STRING', '')
+                
+                # Add X-Forwarded-For for proxy/CDN scenarios (Vercel)
+                x_forwarded_for = environ.get('HTTP_X_FORWARDED_FOR')
+                if x_forwarded_for:
+                    headers_dict['X-Forwarded-For'] = x_forwarded_for
+                    # Use the first IP in X-Forwarded-For as the real client IP
+                    real_ip = x_forwarded_for.split(',')[0].strip()
+                    headers_dict['REAL_CLIENT_IP'] = real_ip
+                
                 # Route to appropriate handler based on path
                 if path in ['/metadata', '/api/metadata']:
                     # Use business logic from backend
