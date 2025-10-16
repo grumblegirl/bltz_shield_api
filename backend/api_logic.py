@@ -136,17 +136,7 @@ class APILogic:
                 database_error = f"Database error: {str(e)}"
         # Prepare response
         response_data = {
-            "result": "success",
-            "message": "Metadata request processed successfully",
-            "timestamp": datetime.now().isoformat(),
-            "metadata_summary": {
-                "provider": json_data.get("provider"),
-                "timestamp": json_data.get("timestamp"),
-                "fields_count": len(meta_data),
-                "user": json_data.get("user"),
-                "license": json_data.get("license"),
-                "database_stored": database_stored
-            }
+            "result": "success"
         }
         if database_error:
             response_data["database_warning"] = database_error
@@ -195,18 +185,7 @@ class APILogic:
         
         # Prepare response
         response_data = {
-            "result": "success", 
-            "message": "Conversation request processed successfully",
-            "timestamp": datetime.now().isoformat(),
-            "conversation_summary": {
-                "provider": json_data.get("provider"),
-                "model": json_data.get("model"),
-                "timestamp": json_data.get("timestamp"),
-                "user": json_data.get("user"),
-                "input_length": len(json_data.get("input", "")),
-                "meta_fields_count": len(meta_data),
-                "database_stored": database_stored
-            }
+            "result": "success"
         }
         if database_error:
             response_data["database_warning"] = database_error
